@@ -17,6 +17,9 @@
 using namespace cv;
 using namespace std;
 
+////// A NEW comment /////////
+
+
 //Screen dimension constants
 const int IMG_WIDTH = 640;
 const int IMG_HEIGHT = 480;
