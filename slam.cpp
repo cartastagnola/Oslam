@@ -17,9 +17,6 @@
 using namespace cv;
 using namespace std;
 
-////// A NEW comment /////////
-
-
 //Screen dimension constants
 const int IMG_WIDTH = 640;
 const int IMG_HEIGHT = 480;
@@ -495,7 +492,7 @@ void filterMatch(std::vector<DMatch> matches, std::vector<KeyPoint> currentPoint
 
 }
 
-bool essentialFilter(std::vector<DMatch>& matches, std::vector<KeyPoint> currentKeyPoints, std::vector<KeyPoint> previousKeyPoints, cv::Mat kMatrix)
+bool essentialFilter(std::vector<DMatch>& matches, std::vector<KeyPoint> currentKeyPoints, std::vector<KeyPoint> previousKeyPoints, cv::Mat kMatrix, cv::Mat *E)
 {
 
     /// chech feature with the essential matrix
@@ -520,7 +517,7 @@ bool essentialFilter(std::vector<DMatch>& matches, std::vector<KeyPoint> current
     if ( curV.size() > 4)
     {
         isTheKValid = true;
-        cv::Mat E =  cv::findEssentialMat(
+        *E =  cv::findEssentialMat(
                 curV,
                 preV,
                 kMatrix,
@@ -637,6 +634,7 @@ int main( int argc, char** argv )
         cout << "K = " << endl << " " << K << endl << endl;
 
         cv::String path("/home/arcblock/datasets/WUST/RGBD/rgb/*.png"); //select only jpg vector<cv::String> fn;
+       // cv::String path("/home/arcblock/datasets/WUST/RGBD/motionblur/*.png"); //select only jpg vector<cv::String> fn;
         vector<cv::String> fn;
         vector<cv::Mat> data;
 
@@ -647,7 +645,7 @@ int main( int argc, char** argv )
         cv::glob(path,fn,true); // recurse
         cv::Mat imPrev = cv::imread(fn[0]);
         cv::Mat im; 
-        for (int k=0; k<35; k++)
+        for (int k=0; k<135; k++)
         {
             printf("lottomat: %d\n", k);
             if ( !firstFrame )
@@ -821,6 +819,12 @@ int main( int argc, char** argv )
                 //Ptr<DescriptorMatcher> matcher = DescriptorMatcher::create(DescriptorMatcher::FLANNBASED);
 
                 std::vector<DMatch> matches[10];
+                cv::Mat E[10];
+                //for( int i = 0; i < 10; i++)
+                //{
+                //    E[i] = cv::Mat();
+                //}
+
                 Fmatch(descriptorsCollection[0][k], descriptorsCollection[0][k-1], matches[0]);
                 //Fmatch(descriptorsCollection[1][k], descriptorsCollection[1][k-1], matches[1]);
                 Fmatch(descriptorsCollection[2][k], descriptorsCollection[2][k-1], matches[2]);
@@ -831,12 +835,13 @@ int main( int argc, char** argv )
 
 
                 printf("matches for 0 are %d\n", matches[0].size());
-                if(!essentialFilter(matches[0], currentFilteredPointsCollection[0][k], previousFilteredPointsCollection[0][k], K))
+                if(!essentialFilter(matches[0], currentFilteredPointsCollection[0][k], previousFilteredPointsCollection[0][k], K, &E[0]))
                 {
                     matches[0].erase(matches[0].begin(), matches[0].end());
+
                 }
                 printf("matches for 0 after filtration are %d\n", matches[0].size());
-                if(!essentialFilter(matches[2], currentFilteredPointsCollection[2][k], previousFilteredPointsCollection[2][k], K))
+                if(!essentialFilter(matches[2], currentFilteredPointsCollection[2][k], previousFilteredPointsCollection[2][k], K, &E[0]))
                 {
                     matches[2].erase(matches[2].begin(), matches[2].end());
                 }
@@ -862,6 +867,45 @@ int main( int argc, char** argv )
 
 
                 }
+                
+                
+                if(matches[0].size() >= 5)
+                {
+                    /// start reconstruction ////
+                    /// rt pose ///
+
+                    cv::Mat U[10], D[10], Vt[10];
+
+
+                    cout << "E = " << endl << " " << E[0] << endl << endl;
+                    cv::SVD::compute(E[0], D[0], U[0], Vt[0]);
+
+                    cout << "U = " << endl << " " << U[0] << endl << endl;
+                    cout << "D = " << endl << " " << D[0] << endl << endl;
+                    cout << "Vt = " << endl << " " << Vt[0] << endl << endl;
+
+                    // following hartley
+                    double dataDiag[9] = {1, 0, 0, 0, 1, 0, 0, 0, 0};
+                    cv::Mat Diag = cv::Mat(3, 3, CV_64FC1, dataDiag); 
+
+                    double dataW[9] = {0, -1, 0, 1, 0, 0, 0, 0, 1};
+                    cv::Mat W = cv::Mat(3, 3, CV_64FC1, dataW); 
+
+                    //cv::Mat S = U[0] * Diag * W * U[0].t();
+                    cv::Mat S = Diag * Diag;
+                    S = U[0] * Diag * W;
+                    S = U[0] * Diag * W * U[0].t();
+                    cv::Mat R = U[0] * W * Vt[0];
+
+                    double detUv = cv::determinant(U[0] * Vt[0]);
+
+                    cout << "S = " << endl << " " << S << endl << endl;
+                    cout << "R = " << endl << " " << R << endl << endl;
+
+                    cout << "det(U * Vt) " << detUv << endl;
+
+                }
+
 
                 /*
                 // part from the example

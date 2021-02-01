@@ -1,0 +1,87 @@
+BootStrap: library
+From: ubuntu:20.04
+
+%setup
+mkdir ${SINGULARITY_ROOTFS}/builder
+
+%post
+
+# go into the builder directory in the image
+cd ${SINGULARITY_ROOTFS}/builder
+
+# Install minimal prerequisites (Ubuntu 18.04 as reference)
+apt -y update
+apt install -y software-properties-common
+add-apt-repository universe
+add-apt-repository multiverse
+apt install -y vim-gtk3 wget git sudo
+DEBIAN_FRONTEND=noninteractive apt-get install -y keyboard-configuration
+
+apt update && apt install -y cmake g++ wget unzip pkg-config vim-gtk3 libgtk2.0-dev
+apt install -y libcanberra-gtk-module libcanberra-gtk3-module libsdl2-dev libsdl2-image-dev libsdl2-gfx-dev gdb
+
+# install raylib
+apt install -y libasound2-dev mesa-common-dev libx11-dev libxrandr-dev libxi-dev xorg-dev libgl1-mesa-dev libglu1-mesa-dev
+
+git clone https://github.com/raysan5/raylib.git raylib
+cd raylib/src/
+make PLATFORM=PLATFORM_DESKTOP RAYLIB_LIBTYPE=SHARED # To make the dynamic shared version. - Recommended
+sudo make install RAYLIB_LIBTYPE=SHARED # Dynamic shared version.
+# END - install raylib
+
+
+# go into the builder directory in the image
+cd ${SINGULARITY_ROOTFS}/builder
+
+######## INSTALL open cv
+# Download and unpack sources
+    wget -O opencv.zip https://github.com/opencv/opencv/archive/master.zip
+    wget -O opencv_contrib.zip https://github.com/opencv/opencv_contrib/archive/master.zip
+    unzip opencv.zip
+    unzip opencv_contrib.zip
+# Create build directory and switch into it
+    mkdir -p build && cd build
+# Configure
+    cmake  -DOPENCV_ENABLE_NONFREE=ON -DOPENCV_GENERATE_PKGCONFIG=ON -DOPENCV_EXTRA_MODULES_PATH=../opencv_contrib-master/modules ../opencv-master
+# Build
+    make -j10
+    make install
+
+### old one ###
+## Download and unpack sources
+#wget -O opencv.zip https://github.com/opencv/opencv/archive/master.zip
+#unzip opencv.zip
+#
+## create the build dir
+#mkdir -p build && cd build
+#
+## Configure
+## To being able to compile with make you need pkg-config flag on and 
+## to have installed pkg-config
+#cmake  ../opencv-master -DOPENCV_GENERATE_PKGCONFIG=ON 
+#
+## Build
+#make -j10
+#
+## install
+#make install
+
+######## END ######  INSTALL opencv
+
+# add opencv path to compile with make
+#find where the libraries are. Not necessary to built the container
+# find / -name "libopencv_core.so.3.2*"
+cd /etc/ld.so.conf.d/
+echo /usr/local/lib/ > opencv.conf 
+ldconfig -v
+
+
+%environment
+    export LC_ALL=C
+    export PATH=/usr/games:$PATH
+
+%runscript
+    fortune | cowsay | lolcat
+
+%labels
+    Author GodloveD
