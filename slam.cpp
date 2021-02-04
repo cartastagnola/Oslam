@@ -52,8 +52,6 @@ SDL_Surface* loadSurface( std::string path );
 //The window we'll be rendering to
 SDL_Window* gWindow = NULL;
 	
-//The surface contained by the window
-SDL_Surface* gScreenSurface = NULL;
 //The images that correspond to a keypress
 SDL_Surface* gKeyPressSurfaces[ KEY_PRESS_SURFACE_TOTAL ];
 
@@ -99,9 +97,6 @@ bool init()
 		}
 		else
 		{
-                    //legacy surface
-                    gScreenSurface = SDL_GetWindowSurface( gWindow );
-
                     //Create renderer for window
                     gRenderer = SDL_CreateRenderer( gWindow, -1, SDL_RENDERER_ACCELERATED );
                     if( gRenderer == NULL )
@@ -773,11 +768,6 @@ int main( int argc, char** argv )
 
             SDL_Rect points[20];
 
-
-            //this make a core dump
-            //SDL_Surface filledSurface = *gScreenSurface;
-            //SDL_SetSurfaceColorMod(filledSurface, 255, 0, 0);
-
             //Render texture to screen
 
             //First image
@@ -1006,15 +996,6 @@ int main( int argc, char** argv )
 
             //Update screen
             SDL_RenderPresent( gRenderer );
-
-            /*
-            //Apply the current image
-            SDL_BlitSurface( frameSurface, NULL, gScreenSurface, NULL );
-            //SDL_BlitSurface( loadedSurface, NULL, gScreenSurface, NULL );
-			
-            //Update the surface
-            SDL_UpdateWindowSurface( gWindow );
-            */
 
             //printf(typeid(im).name());
             //cout << typeid(im).name() << endl;
