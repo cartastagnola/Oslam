@@ -14,6 +14,10 @@
 #include <string>
 #include <typeinfo>
 
+#include "raylib.h"
+#define FOVY_PERSPECTIVE    45.0f
+#define WIDTH_ORTHOGRAPHIC  10.0f
+
 using namespace cv;
 using namespace std;
 
@@ -509,6 +513,10 @@ bool essentialFilter(std::vector<DMatch>& matches, std::vector<KeyPoint> current
         preV.push_back(previousKeyPoints[i].pt);
     }
 
+    std::cout << "curV = " << std::endl << " " << curV << std::endl << std::endl;
+    std::cout << "preV = " << std::endl << " " << preV << std::endl << std::endl;
+    std::cout << "K = " << std::endl << " " << kMatrix << std::endl << std::endl;
+
     printf("filtered cur is %d\n", currentKeyPoints.size());
     printf("filtered pre is %d\n", previousKeyPoints.size());
     printf("curV is %d\n", curV.size());
@@ -517,7 +525,7 @@ bool essentialFilter(std::vector<DMatch>& matches, std::vector<KeyPoint> current
     if ( curV.size() > 4)
     {
         isTheKValid = true;
-        *E =  cv::findEssentialMat(
+        cv::Mat Einside =  cv::findEssentialMat(
                 curV,
                 preV,
                 kMatrix,
@@ -527,20 +535,24 @@ bool essentialFilter(std::vector<DMatch>& matches, std::vector<KeyPoint> current
                 outlier
                 );
 
+        cout << "Einside (inside) = " << endl << " " << Einside << endl << endl;
+
+        *E = Einside;
 
         cout << "outliers = " << endl << " " << outlier << endl << endl;
+        cout << "E (inside) = " << endl << " " << *E << endl << endl;
 
         //cull outlier
-        printf("the row are %d\n", outlier.rows);
-        printf("the cols are %d\n", outlier.cols);
+        // printf("the row are %d\n", outlier.rows);
+        // printf("the cols are %d\n", outlier.cols);
         for ( int i = outlier.rows - 1; i > 0; --i)
         {
             //if(outlier.at<int>(i,0) == 0)
             if(outlier.data[i] == 0)
             {
-                printf("we are here %d\n", i);
-                printf("the our is %d\n", outlier.data[i]);
-                printf("the our is %d\n", outlier.at<int>(0,i));
+                // printf("we are here %d\n", i);
+                // printf("the our is %d\n", outlier.data[i]);
+                // printf("the our is %d\n", outlier.at<int>(0,i));
                 matches.erase(matches.begin() + i);
 
             }
@@ -614,6 +626,9 @@ void blitFeatures(std::vector<DMatch> matches, std::vector<KeyPoint> pointsColle
 int main( int argc, char** argv )
 {
 
+    // poses array
+    std::vector<cv::Vec3d> poses;
+
     //Start up SDL and create a window
     if ( !init() )
     {
@@ -633,7 +648,7 @@ int main( int argc, char** argv )
 
         cout << "K = " << endl << " " << K << endl << endl;
 
-        cv::String path("/home/arcblock/datasets/WUST/RGBD/rgb/*.png"); //select only jpg vector<cv::String> fn;
+        cv::String path("/home/arcblock/datasets/WUST/RGBD-return/rgb-opencvSLAM/*.png"); //select only jpg vector<cv::String> fn;
        // cv::String path("/home/arcblock/datasets/WUST/RGBD/motionblur/*.png"); //select only jpg vector<cv::String> fn;
         vector<cv::String> fn;
         vector<cv::Mat> data;
@@ -645,6 +660,8 @@ int main( int argc, char** argv )
         cv::glob(path,fn,true); // recurse
         cv::Mat imPrev = cv::imread(fn[0]);
         cv::Mat im; 
+        poses.push_back(cv::Vec3d(0.0f, 0.0f, 0.0f));
+
         for (int k=0; k<135; k++)
         {
             printf("lottomat: %d\n", k);
@@ -655,7 +672,7 @@ int main( int argc, char** argv )
             im = cv::imread(fn[k]);
 
             if (im.empty()) continue; //only proceed if sucsessful
-            imshow("Display window", im); 
+            // OPENCV VIEWR // imshow("Display window", im); 
 
             /*
             /// print im data ///
@@ -841,7 +858,7 @@ int main( int argc, char** argv )
 
                 }
                 printf("matches for 0 after filtration are %d\n", matches[0].size());
-                if(!essentialFilter(matches[2], currentFilteredPointsCollection[2][k], previousFilteredPointsCollection[2][k], K, &E[0]))
+                if(!essentialFilter(matches[2], currentFilteredPointsCollection[2][k], previousFilteredPointsCollection[2][k], K, &E[2]))
                 {
                     matches[2].erase(matches[2].begin(), matches[2].end());
                 }
@@ -868,8 +885,9 @@ int main( int argc, char** argv )
 
                 }
                 
-                
-                if(matches[0].size() >= 5)
+                // the E estimatiojn should work also with only 5 point, but sometimes the algorithm output more the one E packed in a cv::Mat structure
+                // Not shure why it do it only sometimes and not always
+                if(matches[0].size() >= 6)
                 {
                     /// start reconstruction ////
                     /// rt pose ///
@@ -904,8 +922,15 @@ int main( int argc, char** argv )
 
                     cout << "det(U * Vt) " << detUv << endl;
 
+                    // store only the translation of the poses
+                    cv::Vec3d t(S.at<double>(2,1), S.at<double>(0,2), S.at<double>(1,0));
+                    std::cout << "t = " << std::endl << " " << t << std::endl << std::endl;
+
+                    poses.push_back(poses.back() + t);
+
                 }
 
+                
 
                 /*
                 // part from the example
@@ -993,7 +1018,7 @@ int main( int argc, char** argv )
 
             //printf(typeid(im).name());
             //cout << typeid(im).name() << endl;
-            waitKey();
+            //WAIT KEY FOR THE OPENCV VIEWER ________________ // waitKey();
             // you probably want to do some preprocessing
             data.push_back(im);
             firstFrame = false;
@@ -1002,6 +1027,90 @@ int main( int argc, char** argv )
     
     //Free resources and close SDL
     close();
+
+    ///////// start raylib ////////////////////
+
+    // Initialization
+    //--------------------------------------------------------------------------------------
+    const int screenWidth = 800;
+    const int screenHeight = 450;
+
+    InitWindow(screenWidth, screenHeight, "slam 3d viewer");
+
+    // Define the camera to look into our 3d world
+    Camera3D camera = { 0 };
+    camera.position = (Vector3){ 10.0f, 10.0f, 10.0f }; // Camera position
+    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
+    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
+    camera.fovy = 45.0f;                                // Camera field-of-view Y
+    camera.type = CAMERA_PERSPECTIVE;                   // Camera mode type
+
+    Vector3 cubePosition = { 0.0f, 0.0f, 0.0f };
+
+    SetCameraMode(camera, CAMERA_FREE); // Set a free camera mode
+
+    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    //--------------------------------------------------------------------------------------
+
+    // Main game loop
+    while (!WindowShouldClose())    // Detect window close button or ESC key
+    {
+        // Update
+        //----------------------------------------------------------------------------------
+        if (IsKeyPressed(KEY_SPACE))
+        {
+            if (camera.type == CAMERA_PERSPECTIVE)
+            {
+                camera.fovy = WIDTH_ORTHOGRAPHIC;
+                camera.type = CAMERA_ORTHOGRAPHIC;
+            }
+            else
+            {
+                camera.fovy = FOVY_PERSPECTIVE;
+                camera.type = CAMERA_PERSPECTIVE;
+            }
+        }
+
+        UpdateCamera(&camera);          // Update camera
+
+        if (IsKeyDown('Z')) camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };
+        //----------------------------------------------------------------------------------
+
+        // Draw
+        //----------------------------------------------------------------------------------
+        BeginDrawing();
+
+            ClearBackground(RAYWHITE);
+
+            BeginMode3D(camera);
+            
+            // loop to draw all the pose
+            for(int i = 0; i < poses.size(); i++)
+            {
+                cv::Vec3d v = poses[i];
+                DrawSphere((Vector3){v[0], v[1], v[2]}, 0.02f, RED);
+                std::cout << "vec = " << v << std::endl;
+            }
+
+                DrawGrid(10, 1.0f);        // Draw a grid
+
+            EndMode3D();
+
+            DrawText("I am a SLAM, a real one!", 10, GetScreenHeight() - 30, 20, DARKGRAY);
+
+            if (camera.type == CAMERA_ORTHOGRAPHIC) DrawText("ORTHOGRAPHIC", 10, 40, 20, BLACK);
+            else if (camera.type == CAMERA_PERSPECTIVE) DrawText("PERSPECTIVE", 10, 40, 20, BLACK);
+
+            DrawFPS(10, 10);
+
+        EndDrawing();
+        //----------------------------------------------------------------------------------
+    }
+
+    // De-Initialization
+    //--------------------------------------------------------------------------------------
+    CloseWindow();        // Close window and OpenGL context
+    //--------------------------------------------------------------------------------------
 
     return 0;
 }
