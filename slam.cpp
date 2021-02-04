@@ -618,11 +618,123 @@ void blitFeatures(std::vector<DMatch> matches, std::vector<KeyPoint> pointsColle
     }
 }
 
+
+////// temp code to find the home directory //////
+#include <unistd.h>
+#include <sys/types.h>
+#include <pwd.h>
+
+
+#include <thread>
+
+int StartViewer(Camera3d camera, cv::Vec3d *poses)
+{
+    // Main game loop
+    while (!WindowShouldClose())    // Detect window close button or ESC key
+    {
+        // Update
+        //----------------------------------------------------------------------------------
+        if (IsKeyPressed(KEY_SPACE))
+        {
+            if (camera.type == CAMERA_PERSPECTIVE)
+            {
+                camera.fovy = WIDTH_ORTHOGRAPHIC;
+                camera.type = CAMERA_ORTHOGRAPHIC;
+            }
+            else
+            {
+                camera.fovy = FOVY_PERSPECTIVE;
+                camera.type = CAMERA_PERSPECTIVE;
+            }
+        }
+
+        UpdateCamera(&camera);          // Update camera
+
+        if (IsKeyDown('Z')) camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };
+        //----------------------------------------------------------------------------------
+
+        // Draw
+        //----------------------------------------------------------------------------------
+        BeginDrawing();
+
+            ClearBackground(RAYWHITE);
+
+            BeginMode3D(camera);
+            
+            // loop to draw all the pose
+            for(int i = 0; i < poses.size(); i++)
+            {
+                cv::Vec3d v = poses[i];
+                DrawSphere((Vector3){v[0], v[1], v[2]}, 0.08f, RED);
+                std::cout << "vec = " << v << std::endl;
+            }
+
+                DrawGrid(10, 1.0f);        // Draw a grid
+
+            EndMode3D();
+
+            DrawText("I am a SLAM, a real one!", 10, GetScreenHeight() - 30, 20, DARKGRAY);
+
+            if (camera.type == CAMERA_ORTHOGRAPHIC) DrawText("ORTHOGRAPHIC", 10, 40, 20, BLACK);
+            else if (camera.type == CAMERA_PERSPECTIVE) DrawText("PERSPECTIVE", 10, 40, 20, BLACK);
+
+            DrawFPS(10, 10);
+
+        EndDrawing();
+        //----------------------------------------------------------------------------------
+    }
+
+    // De-Initialization
+    //--------------------------------------------------------------------------------------
+    CloseWindow();        // Close window and OpenGL context
+    //--------------------------------------------------------------------------------------
+
+    return 0;
+}
+
+/////////////////////////////////////
+
 int main( int argc, char** argv )
 {
 
     // poses array
     std::vector<cv::Vec3d> poses;
+
+    ///////// start raylib ////////////////////
+
+    // Initialization
+    //--------------------------------------------------------------------------------------
+    const int screenWidth = 800;
+    const int screenHeight = 450;
+
+    InitWindow(screenWidth, screenHeight, "slam 3d viewer");
+
+    // Define the camera to look into our 3d world
+    Camera3D camera = { 0 };
+    camera.position = (Vector3){ 10.0f, 10.0f, 10.0f }; // Camera position
+    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
+    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
+    camera.fovy = 45.0f;                                // Camera field-of-view Y
+    camera.type = CAMERA_PERSPECTIVE;                   // Camera mode type
+
+    Vector3 cubePosition = { 0.0f, 0.0f, 0.0f };
+
+    SetCameraMode(camera, CAMERA_FREE); // Set a free camera mode
+
+    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
+    //--------------------------------------------------------------------------------------
+
+    std::thread t1(StartViewer, camera, &poses)
+
+
+    //// temp code home folder
+    const char *homedir;
+    if((homedir = getenv("HOME")) == NULL) 
+    {
+        homedir = getpwuid(getuid())->pw_dir;
+    }
+
+
 
     //Start up SDL and create a window
     if ( !init() )
@@ -643,7 +755,10 @@ int main( int argc, char** argv )
 
         cout << "K = " << endl << " " << K << endl << endl;
 
-        cv::String path("/home/arcblock/datasets/WUST/RGBD-return/rgb-opencvSLAM/*.png"); //select only jpg vector<cv::String> fn;
+        cv::String home(homedir);
+        cv::String folderPath("/datasets/WUST/RGBD-return/rgb-opencvSLAM/*.png"); //select only jpg vector<cv::String> fn;
+        cv::String path = home + folderPath;
+        std::cout << path << std::endl;
        // cv::String path("/home/arcblock/datasets/WUST/RGBD/motionblur/*.png"); //select only jpg vector<cv::String> fn;
         vector<cv::String> fn;
         vector<cv::Mat> data;
@@ -667,7 +782,8 @@ int main( int argc, char** argv )
             im = cv::imread(fn[k]);
 
             if (im.empty()) continue; //only proceed if sucsessful
-            // OPENCV VIEWR // imshow("Display window", im); 
+            // OPENCV VIEWR // 
+            imshow("Display window", im); 
 
             /*
             /// print im data ///
@@ -999,7 +1115,8 @@ int main( int argc, char** argv )
 
             //printf(typeid(im).name());
             //cout << typeid(im).name() << endl;
-            //WAIT KEY FOR THE OPENCV VIEWER ________________ // waitKey();
+            //WAIT KEY FOR THE OPENCV VIEWER ________________ // 
+            waitKey();
             // you probably want to do some preprocessing
             data.push_back(im);
             firstFrame = false;
@@ -1009,91 +1126,6 @@ int main( int argc, char** argv )
     //Free resources and close SDL
     close();
 
-    ///////// start raylib ////////////////////
-
-    // Initialization
-    //--------------------------------------------------------------------------------------
-    const int screenWidth = 800;
-    const int screenHeight = 450;
-
-    InitWindow(screenWidth, screenHeight, "slam 3d viewer");
-
-    // Define the camera to look into our 3d world
-    Camera3D camera = { 0 };
-    camera.position = (Vector3){ 10.0f, 10.0f, 10.0f }; // Camera position
-    camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };      // Camera looking at point
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };          // Camera up vector (rotation towards target)
-    camera.fovy = 45.0f;                                // Camera field-of-view Y
-    camera.type = CAMERA_PERSPECTIVE;                   // Camera mode type
-
-    Vector3 cubePosition = { 0.0f, 0.0f, 0.0f };
-
-    SetCameraMode(camera, CAMERA_FREE); // Set a free camera mode
-
-    SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
-    //--------------------------------------------------------------------------------------
-
-    // Main game loop
-    while (!WindowShouldClose())    // Detect window close button or ESC key
-    {
-        // Update
-        //----------------------------------------------------------------------------------
-        if (IsKeyPressed(KEY_SPACE))
-        {
-            if (camera.type == CAMERA_PERSPECTIVE)
-            {
-                camera.fovy = WIDTH_ORTHOGRAPHIC;
-                camera.type = CAMERA_ORTHOGRAPHIC;
-            }
-            else
-            {
-                camera.fovy = FOVY_PERSPECTIVE;
-                camera.type = CAMERA_PERSPECTIVE;
-            }
-        }
-
-        UpdateCamera(&camera);          // Update camera
-
-        if (IsKeyDown('Z')) camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };
-        //----------------------------------------------------------------------------------
-
-        // Draw
-        //----------------------------------------------------------------------------------
-        BeginDrawing();
-
-            ClearBackground(RAYWHITE);
-
-            BeginMode3D(camera);
-            
-            // loop to draw all the pose
-            for(int i = 0; i < poses.size(); i++)
-            {
-                cv::Vec3d v = poses[i];
-                DrawSphere((Vector3){v[0], v[1], v[2]}, 0.02f, RED);
-                std::cout << "vec = " << v << std::endl;
-            }
-
-                DrawGrid(10, 1.0f);        // Draw a grid
-
-            EndMode3D();
-
-            DrawText("I am a SLAM, a real one!", 10, GetScreenHeight() - 30, 20, DARKGRAY);
-
-            if (camera.type == CAMERA_ORTHOGRAPHIC) DrawText("ORTHOGRAPHIC", 10, 40, 20, BLACK);
-            else if (camera.type == CAMERA_PERSPECTIVE) DrawText("PERSPECTIVE", 10, 40, 20, BLACK);
-
-            DrawFPS(10, 10);
-
-        EndDrawing();
-        //----------------------------------------------------------------------------------
-    }
-
-    // De-Initialization
-    //--------------------------------------------------------------------------------------
-    CloseWindow();        // Close window and OpenGL context
-    //--------------------------------------------------------------------------------------
-
-    return 0;
 }
 
 /*	
