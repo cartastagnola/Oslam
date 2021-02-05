@@ -35,3 +35,8 @@ cvExpoler*
 *.exe
 *.out
 *.app
+
+# temporary files and folder
+mutex*
+ray*
+simple*
