@@ -37,6 +37,8 @@
 #define FOVY_PERSPECTIVE    45.0f
 #define WIDTH_ORTHOGRAPHIC  10.0f
 
+#define PRINT_MAT 0
+
 //Screen dimension constants
 const int IMG_WIDTH = 640;
 const int IMG_HEIGHT = 480;
@@ -382,6 +384,8 @@ bool essentialFilter(std::vector<cv::DMatch>& matches, std::vector<cv::KeyPoint>
         preV.push_back(previousKeyPoints[i].pt);
     }
 
+
+#if PRINT_MAT
     std::cout << "curV = " << std::endl << " " << curV << std::endl << std::endl;
     std::cout << "preV = " << std::endl << " " << preV << std::endl << std::endl;
     std::cout << "K = " << std::endl << " " << kMatrix << std::endl << std::endl;
@@ -390,6 +394,7 @@ bool essentialFilter(std::vector<cv::DMatch>& matches, std::vector<cv::KeyPoint>
     printf("filtered pre is %d\n", previousKeyPoints.size());
     printf("curV is %d\n", curV.size());
     printf("preV is %d\n", preV.size());
+#endif
 
     if ( curV.size() > 4)
     {
@@ -404,12 +409,14 @@ bool essentialFilter(std::vector<cv::DMatch>& matches, std::vector<cv::KeyPoint>
                 outlier
                 );
 
-        std::cout << "Einside (inside) = " << std::endl << " " << Einside << std::endl << std::endl;
-
         *E = Einside;
+#if PRINT_MAT
+        std::cout << "Einside (inside) = " << std::endl << " " << Einside << std::endl << std::endl;
 
         std::cout << "outliers = " << std::endl << " " << outlier << std::endl << std::endl;
         std::cout << "E (inside) = " << std::endl << " " << *E << std::endl << std::endl;
+#endif
+
 
         //cull outlier
         // printf("the row are %d\n", outlier.rows);
@@ -509,7 +516,7 @@ int StartViewer(std::vector<cv::Vec3d> *poses)
                 {
                     cv::Vec3d v = (*poses)[i];
                     DrawSphere((Vector3){v[0], v[1], v[2]}, 0.08f, RED);
-                    std::cout << "vec = " << v << std::endl;
+                    //std::cout << "vec = " << v << std::endl;
                 }
                 mtx.unlock();
 
@@ -541,22 +548,18 @@ void SDLloop(SDL_Renderer* gRenderer)
 
     std::chrono::milliseconds sleepTime(100); 
 
-    if(!init())
+    while(1)
     {
-        printf( "Failed to load SDL!\n");
-    }
-    else
-    {
-        while(1)
-        {
-            mtxSDL.lock();
-            SDL_RenderPresent(gRenderer);
-            mtxSDL.unlock();
-            std::this_thread::sleep_for(sleepTime);
-        }
+        mtxSDL.lock();
+        SDL_SetRenderDrawColor( gRenderer, 0x00, 0xFF, 0xFF, 0xFF);
+        SDL_RenderPresent(gRenderer);
+        printf("i am in the thread?\n");
+        mtxSDL.unlock();
+        std::this_thread::sleep_for(sleepTime);
     }
 
 }
+
 /////////////////////////////////////
 
 
@@ -574,6 +577,12 @@ int main( int argc, char** argv )
     vec[0] = 3.0f;
     poses.push_back(vec);
 
+    // init sdl
+    if(!init())
+    {
+        printf( "Failed to load SDL!\n");
+    }
+
     // start interfaces, ray and sdl
     std::thread viewer3d(StartViewer,&poses);
     std::thread viewer2d(SDLloop, gRenderer);
@@ -586,7 +595,9 @@ int main( int argc, char** argv )
 
     float dataK[9] = {fx, 0, cx, 0, fy, cy, 0, 0, 1};
     cv::Mat K = cv::Mat(3, 3, CV_32F, dataK); 
+#if PRINT_MAT
     std::cout << "K = " << std::endl << " " << K << std::endl << std::endl;
+#endif
 
     //// temp code home folder
     const char *homedir;
@@ -602,8 +613,6 @@ int main( int argc, char** argv )
     std::vector<cv::String> fn;
     std::vector<cv::Mat> data;
 
-    printf("hello world\n");
-
     /////////// MAIN LOOP ///////////////
     bool firstFrame = true;
     cv::glob(path,fn,true); // recurse
@@ -616,7 +625,6 @@ int main( int argc, char** argv )
 
     for (int k=0; k<35; k++)
     {
-        printf("lottomat: %d\n", k);
         if ( !firstFrame )
         {
             imPrev = im;
@@ -633,8 +641,6 @@ int main( int argc, char** argv )
         printf("number of rows %d\n", im.rows);
         printf("depth %d\n", im.depth());
         printf("nothing dd %d\n", *im.step.buf);
-        printf("here 33\n");
-        printf("lottomat2: %d\n", k);
         */
 
         // BN ////////////////
@@ -676,17 +682,20 @@ int main( int argc, char** argv )
         int bb = 0;
         for  (size_t i = 0; i < outCorners.rows; i++) 
         {
-            printf("bb = %d\n", bb);
-            printf("bb = %d\n", outCorners.rows);
             outCornersVec.push_back(outCorners.at<cv::Point2f>(i));
             //MkeyPointsCollection[k].push_back(outCorners.at<cv::KeyPoint>(i));
             bb++;
         }
 
+
+
+
+#if PRINT_MAT
         std::cout << "outFF = " << std::endl << " " << outCornersVec << std::endl << std::endl;
         //ORB extraction for good features
 
         std::cout << "descriptors = " << std::endl << " " << MdescriptorCollection[k] << std::endl << std::endl;
+#endif
 
         //SDL part
         SDL_Surface* frameSurface = SDL_CreateRGBSurfaceFrom((void*)im.data,
@@ -706,11 +715,8 @@ int main( int argc, char** argv )
             printf( "Unable to load image %s! SDL Error: %s\n", "rgb from mat", SDL_GetError() );
         }
 
-        printf("here 3\n");
-
         SDL_Texture* newTexture = NULL;
         SDL_Texture* newTexturePrev = NULL;
-
 
         mtxSDL.lock();
         //Create texture from surface pixels
@@ -758,10 +764,14 @@ int main( int argc, char** argv )
         SDL_RenderCopy( gRenderer, newTexturePrev, NULL, &DestR);
         mtxSDL.unlock(); 
 
+        int gh = 6;
+
+        int *nn = &gh;
+
         for (int idx = 0; idx < keyPointsCollection[0][k].size(); idx++)
         {
             int d = 3;
-            printf("x coor %d, idx: %d, k: %d\n", keyPointsCollection[0][k][idx].pt.x, idx, k);
+            //printf("x coor %d, idx: %d, k: %d\n", keyPointsCollection[0][k][idx].pt.x, idx, k);
             SDL_Rect pt = createPoint(keyPointsCollection[0][k][idx].pt.x, keyPointsCollection[0][k][idx].pt.y, 5); 
         }
 
@@ -790,13 +800,13 @@ int main( int argc, char** argv )
             filterMatch(matches[2], keyPointsCollection[2][k], keyPointsCollection[2][k - 1], currentFilteredPointsCollection[2][k], previousFilteredPointsCollection[2][k]);
 
 
-            printf("matches for 0 are %d\n", matches[0].size());
+            //printf("matches for 0 are %d\n", matches[0].size());
             if(!essentialFilter(matches[0], currentFilteredPointsCollection[0][k], previousFilteredPointsCollection[0][k], K, &E[0]))
             {
                 matches[0].erase(matches[0].begin(), matches[0].end());
 
             }
-            printf("matches for 0 after filtration are %d\n", matches[0].size());
+            //printf("matches for 0 after filtration are %d\n", matches[0].size());
             if(!essentialFilter(matches[2], currentFilteredPointsCollection[2][k], previousFilteredPointsCollection[2][k], K, &E[2]))
             {
                 matches[2].erase(matches[2].begin(), matches[2].end());
@@ -835,14 +845,13 @@ int main( int argc, char** argv )
                 /// rt pose ///
 
                 cv::Mat U[10], D[10], Vt[10];
-
-
-                std::cout << "E = " << std::endl << " " << E[0] << std::endl << std::endl;
                 cv::SVD::compute(E[0], D[0], U[0], Vt[0]);
-
+#if PRINT_MAT
+                std::cout << "E = " << std::endl << " " << E[0] << std::endl << std::endl;
                 std::cout << "U = " << std::endl << " " << U[0] << std::endl << std::endl;
                 std::cout << "D = " << std::endl << " " << D[0] << std::endl << std::endl;
                 std::cout << "Vt = " << std::endl << " " << Vt[0] << std::endl << std::endl;
+#endif
 
                 // following hartley
                 double dataDiag[9] = {1, 0, 0, 0, 1, 0, 0, 0, 0};
@@ -858,16 +867,17 @@ int main( int argc, char** argv )
                 cv::Mat R = U[0] * W * Vt[0];
 
                 double detUv = cv::determinant(U[0] * Vt[0]);
+                cv::Vec3d t(S.at<double>(2,1), S.at<double>(0,2), S.at<double>(1,0));
 
+#if PRINT_MAT
                 std::cout << "S = " << std::endl << " " << S << std::endl << std::endl;
                 std::cout << "R = " << std::endl << " " << R << std::endl << std::endl;
-
                 std::cout << "det(U * Vt) " << detUv << std::endl;
 
                 // store only the translation of the poses
-                cv::Vec3d t(S.at<double>(2,1), S.at<double>(0,2), S.at<double>(1,0));
                 std::cout << "t = " << std::endl << " " << t << std::endl << std::endl;
 
+#endif
 
                 mtx.lock();
                 poses.push_back(poses.back() + t);
@@ -886,7 +896,7 @@ int main( int argc, char** argv )
         // mtxSDL.unlock(); 
 
         //Update screen
-        // SDL_RenderPresent(gRenderer);
+        //SDL_RenderPresent(gRenderer);
 
         //printf(typeid(im).name());
         //cout << typeid(im).name() << std::endl;
