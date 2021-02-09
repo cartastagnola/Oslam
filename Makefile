@@ -1,5 +1,6 @@
-CFLAGS = -w `pkg-config --cflags opencv4` -std=c99 -D_DEFAULT_SOURCE -Wno-missing-braces -s -O1 
-INCLUDE_PATHS = -Wall -D_DEFAULT_SOURCE -Wno-missing-braces -s -O1 -I/usr/local/include -I. -L. -L/usr/local/lib -lraylib -lGL -lm -lpthread -ldl -lrt -lX11 
+CFLAGS = -g -w `pkg-config --cflags opencv4` -std=c99 -D_DEFAULT_SOURCE -Wno-missing-braces 
+INCLUDE_PATHS = -Wall -D_DEFAULT_SOURCE -Wno-missing-braces -I/usr/local/include -I. -L. -L/usr/local/lib -lraylib -lGL -lm -lpthread -ldl -lrt -lX11 
+# deleted from the CFLAGS -s -O1 to make gcc to create the debugging symbol
 #LFLAGS = `-w`
 LIBS = -lSDL2 -lSDL2_image -lSDL2_gfx `pkg-config --libs opencv4 `
 #LIBS = `pkg-config --libs opencv4 `
@@ -9,7 +10,7 @@ LIBS = -lSDL2 -lSDL2_image -lSDL2_gfx `pkg-config --libs opencv4 `
 #	g++ $(CFLAGS) -o  $@ $< $(LIBS) 
 
 % : %.cpp
-	g++ -g $< $(CFLAGS) $(LIBS) $(INCLUDE_PATHS) -o $@ 
+	g++ $< $(CFLAGS) $(LIBS) $(INCLUDE_PATHS) -o $@ 
 
 ##OBJS specifies which files to compile as part of the project
 #OBJS = 01_hello_SDL.cpp
