@@ -37,7 +37,7 @@
 #define FOVY_PERSPECTIVE    45.0f
 #define WIDTH_ORTHOGRAPHIC  10.0f
 
-#define PRINT_MAT 0
+#define PRINT_MAT 1
 
 //Screen dimension constants
 const int IMG_WIDTH = 640;
@@ -623,7 +623,7 @@ int main( int argc, char** argv )
     mtx.unlock();
 
 
-    for (int k=0; k<35; k++)
+    for (int k=0; k<135; k++)
     {
         if ( !firstFrame )
         {
@@ -860,10 +860,11 @@ int main( int argc, char** argv )
                 double dataW[9] = {0, -1, 0, 1, 0, 0, 0, 0, 1};
                 cv::Mat W = cv::Mat(3, 3, CV_64FC1, dataW); 
 
-                //cv::Mat S = U[0] * Diag * W * U[0].t();
-                cv::Mat S = Diag * Diag;
-                S = U[0] * Diag * W;
-                S = U[0] * Diag * W * U[0].t();
+                double dataZ[9] = {0, 1, 0, -1, 0, 0, 0, 0, 0};
+                cv::Mat Z = cv::Mat(3, 3, CV_64FC1, dataZ); 
+
+                //cv::Mat S = U[0] * Z * U[0].t();
+                cv::Mat S = U[0] * Diag * W * U[0].t();
                 cv::Mat R = U[0] * W * Vt[0];
 
                 double detUv = cv::determinant(U[0] * Vt[0]);
