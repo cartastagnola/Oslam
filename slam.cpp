@@ -37,7 +37,7 @@
 #define FOVY_PERSPECTIVE    45.0f
 #define WIDTH_ORTHOGRAPHIC  10.0f
 
-#define PRINT_MAT 1
+#define PRINT_MAT 0
 
 //Screen dimension constants
 const int IMG_WIDTH = 640;
@@ -438,6 +438,15 @@ bool essentialFilter(std::vector<cv::DMatch>& matches, std::vector<cv::KeyPoint>
     return(isTheKValid);
 }
 
+// add n col to a cv::mat
+void resizeCol(cv::Mat& m, size_t sz, const cv::Scalar& s)
+{
+    cv::Mat tm(m.rows, m.cols + sz, m.type());
+    tm.setTo(s);
+    m.copyTo(tm(cv::Rect(cv::Point(0, 0), m.size())));
+    m = tm;
+}
+
 
 ////// temp code to find the home directory //////
 #include <unistd.h>
@@ -451,7 +460,7 @@ bool essentialFilter(std::vector<cv::DMatch>& matches, std::vector<cv::KeyPoint>
 std::mutex mtx;
 std::mutex mtxSDL;
 
-int StartViewer(std::vector<cv::Vec3d> *poses)
+int StartViewer(std::vector<cv::Vec3d> *poses, std::vector<cv::Vec3d> *posesH, std::vector<cv::Mat> *posesHom)
 {
     ///////// start raylib ////////////////////
 
@@ -497,6 +506,7 @@ int StartViewer(std::vector<cv::Vec3d> *poses)
             }
         }
 
+        cv::Vec3d sum(0,0,0);
         UpdateCamera(&camera);          // Update camera
 
         if (IsKeyDown('Z')) camera.target = (Vector3){ 0.0f, 0.0f, 0.0f };
@@ -517,6 +527,16 @@ int StartViewer(std::vector<cv::Vec3d> *poses)
                     cv::Vec3d v = (*poses)[i];
                     DrawSphere((Vector3){v[0], v[1], v[2]}, 0.08f, RED);
                     //std::cout << "vec = " << v << std::endl;
+                    cv::Vec3d vH = (*posesH)[i];
+                    DrawSphere((Vector3){vH[0], vH[1], vH[2]}, 0.08f, BLUE);
+
+                    //poses drawing
+                    cv::Mat M = (*posesHom)[i];
+                    cv::Vec3d position(M.at<double>(0,3), M.at<double>(1,3), M.at<double>(2,3));
+                    std::cout << "postion = " << std::endl << " " << position << std::endl << std::endl;
+                    sum = sum + position;
+                    DrawSphere((Vector3){position[0], position[1], position[2]}, 0.04f, ORANGE);
+                    DrawSphere((Vector3){sum[0], sum[1], sum[2]}, 0.06f, PINK);
                 }
                 mtx.unlock();
 
@@ -570,12 +590,14 @@ int main( int argc, char** argv )
 
     // poses array
     std::vector<cv::Vec3d> poses;
-    cv::Vec3d vec(1.0f, 0.0f, 0.0f);
+    std::vector<cv::Vec3d> posesH;
+    cv::Vec3d vec(0.0f, 0.0f, 0.0f);
     poses.push_back(vec);
-    vec[0] = 2.0f;
-    poses.push_back(vec);
-    vec[0] = 3.0f;
-    poses.push_back(vec);
+    posesH.push_back(vec);
+
+    std::vector<cv::Mat> posesHom;
+    cv::Mat pose0 = cv::Mat::eye(4, 4, CV_64FC1);
+    posesHom.push_back(pose0);
 
     // init sdl
     if(!init())
@@ -584,7 +606,7 @@ int main( int argc, char** argv )
     }
 
     // start interfaces, ray and sdl
-    std::thread viewer3d(StartViewer,&poses);
+    std::thread viewer3d(StartViewer,&poses, &posesH, &posesHom);
     std::thread viewer2d(SDLloop, gRenderer);
 
     /// INTRINSIC  ///////
@@ -618,10 +640,6 @@ int main( int argc, char** argv )
     cv::glob(path,fn,true); // recurse
     cv::Mat imPrev = cv::imread(fn[0]);
     cv::Mat im; 
-    mtx.lock();
-    poses.push_back(cv::Vec3d(0.0f, 0.0f, 0.0f));
-    mtx.unlock();
-
 
     for (int k=0; k<135; k++)
     {
@@ -869,6 +887,15 @@ int main( int argc, char** argv )
 
                 double detUv = cv::determinant(U[0] * Vt[0]);
                 cv::Vec3d t(S.at<double>(2,1), S.at<double>(0,2), S.at<double>(1,0));
+                cv::Mat t_mat(t, CV_64FC1);
+                cv::Vec3d t_hotz(U[0].at<double>(0,2), U[0].at<double>(1,2), U[0].at<double>(2,2));
+
+                //create a homogeneus pose
+                cv::Mat pose(4,4, CV_64FC1);
+                pose.setTo(0);
+                R.copyTo(pose(cv::Rect(cv::Point(0,0), R.size())));
+                t_mat.copyTo(pose.col(3)(cv::Rect(cv::Point(0,0), t_mat.size())));
+                pose.at<double>(3,3) = 1.0f;
 
 #if PRINT_MAT
                 std::cout << "S = " << std::endl << " " << S << std::endl << std::endl;
@@ -877,13 +904,23 @@ int main( int argc, char** argv )
 
                 // store only the translation of the poses
                 std::cout << "t = " << std::endl << " " << t << std::endl << std::endl;
+                std::cout << "t_hotz = " << std::endl << " " << t_hotz << std::endl << std::endl;
+
+                std::cout << "pose = " << std::endl << " " << pose << std::endl << std::endl;
 
 #endif
+                std::cout << "pose = " << std::endl << " " << pose << std::endl << std::endl;
 
                 mtx.lock();
                 poses.push_back(poses.back() + t);
+                posesH.push_back(posesH.back() + t_hotz);
+
+                cv::Mat newPose = posesHom.back() * pose;
+                posesHom.push_back(newPose);
                 mtx.unlock();
 
+                std::cout << "newPose = " << std::endl << " " << newPose << std::endl << std::endl;
+                std::cout << "posesHom = " << std::endl << " " << posesHom.back() << std::endl << std::endl;
             }
 
         }
@@ -902,7 +939,7 @@ int main( int argc, char** argv )
         //printf(typeid(im).name());
         //cout << typeid(im).name() << std::endl;
         //WAIT KEY FOR THE OPENCV VIEWER ________________ // 
-        //waitKey();
+        cv::waitKey();
         // you probably want to do some preprocessing
         data.push_back(im);
         firstFrame = false;
