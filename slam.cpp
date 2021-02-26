@@ -537,6 +537,19 @@ int StartViewer(std::vector<cv::Vec3d> *poses, std::vector<cv::Vec3d> *posesH, s
                     sum = sum + position;
                     DrawSphere((Vector3){position[0], position[1], position[2]}, 0.04f, ORANGE);
                     DrawSphere((Vector3){sum[0], sum[1], sum[2]}, 0.06f, PINK);
+
+                    // with camera center
+                    cv::Mat rot = (*posesHom)[i](cv::Rect(0,0,3,3));
+                    cv::Mat t = (*posesHom)[i](cv::Rect(3,0,1,3));
+                    std::cout << "rot = " << std::endl << " " << rot << std::endl << std::endl;
+                    std::cout << "t = " << std::endl << " " << t << std::endl << std::endl;
+
+                    cv::Mat cameraCenter = -rot.t() * t;
+                    std::cout << "cameraCenter = " << std::endl << " " << cameraCenter << std::endl << std::endl;
+                    cv::Vec3d position2(cameraCenter.at<double>(0,0), cameraCenter.at<double>(1,0), cameraCenter.at<double>(2,0));
+                    std::cout << "postion2 = " << std::endl << " " << position2 << std::endl << std::endl;
+                    DrawSphere((Vector3){position2[0], position2[1], position2[2]}, 0.04f, YELLOW);
+
                 }
                 mtx.unlock();
 
